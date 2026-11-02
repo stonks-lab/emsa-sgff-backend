@@ -1592,12 +1592,50 @@ def get_sim_vendor_codes(proyectos: list[str]) -> list[dict]:
             'proyecto':         str(proyecto_val),
             'alcance':          str(alcance_val),
             'contratos_pyc':    contratos_pyc,
+            'tipos_contrato':   [],
+            'saldo_pyc':        0.0,
             'moneda':           moneda,
             'total_proyectado': float(grp['monto'].sum()),
             'periodo_inicio':   periodos[0]['periodo']  if periodos else '',
             'periodo_fin':      periodos[-1]['periodo'] if periodos else '',
             'periodos':         periodos,
         })
+
+    try:
+        from app.metrics.calculations import saldo_por_contrato
+        sic = saldo_por_contrato()
+
+        def _norm_ctt(code: str) -> str:
+            s = code.strip()
+            return s[3:] if s.upper().startswith('CO-') else s
+
+        tipo_map, saldo_map = {}, {}
+        if 'codigo_ctt' in sic.columns:
+            base = sic.dropna(subset=['codigo_ctt']).drop_duplicates('codigo_ctt')
+            if 'Tipo_contrato' in sic.columns:
+                tipo_map = base.set_index('codigo_ctt')['Tipo_contrato'].to_dict()
+            if 'Saldo_CLP' in sic.columns:
+                saldo_map = base.set_index('codigo_ctt')['Saldo_CLP'].to_dict()
+
+        tipo_map_norm  = {_norm_ctt(k): v for k, v in tipo_map.items()}
+        saldo_map_norm = {_norm_ctt(k): v for k, v in saldo_map.items()}
+
+        for row in result:
+            tipos = set()
+            saldo_total = 0.0
+            for c in row['contratos_pyc']:
+                nc = _norm_ctt(c)
+                t = tipo_map.get(c) or tipo_map_norm.get(nc)
+                if t:
+                    tipos.add(t)
+                s = saldo_map.get(c) or saldo_map_norm.get(nc)
+                if s is not None:
+                    saldo_total += float(s)
+            row['tipos_contrato'] = sorted(tipos)
+            row['saldo_pyc'] = saldo_total
+    except Exception:
+        pass  # tipos_contrato/saldo_pyc remain defaults
+
     return result
 
 
@@ -1613,6 +1651,11 @@ def get_sim_contratos() -> dict:
     for col in ('Saldo_CLP', 'Presupuesto_CLP'):
         if col in sic_df.columns:
             sic_df[col] = pd.to_numeric(sic_df[col], errors='coerce').fillna(0)
+
+    # Solo contratos vigentes
+    if 'Estado_ctt' in sic_df.columns:
+        sic_df = sic_df[sic_df['Estado_ctt'].str.strip() == 'Vigente']
+
     sic_list = _json.loads(sic_df.to_json(orient='records'))
 
     solpe = load_solpe()
