@@ -399,6 +399,28 @@ def get_tabla(
     return result.fillna("").to_dict("records")
 
 
+@router.get("/tiempos/columnas")
+def get_tiempos_columnas():
+    """Columnas crudas de la fuente de datos del endpoint /tiempos — para diagnóstico."""
+    import json
+    from app.data.sql_server import query_df
+    from fastapi import HTTPException as _HTTPException
+    try:
+        ep = query_df("SELECT TOP 1 * FROM dbo.SIC_EPs")
+        ep.columns = [c.strip() for c in ep.columns]
+        row = {k: ("" if v != v else str(v)) for k, v in ep.iloc[0].to_dict().items()}
+        return {"fuente": "dbo.SIC_EPs", "columnas": list(ep.columns), "primera_fila": row}
+    except Exception:
+        pass
+    try:
+        from app.data.loader import load_solpe
+        sol = load_solpe()
+        row = {k: ("" if v != v else str(v)) for k, v in sol.iloc[0].to_dict().items()}
+        return {"fuente": "dbo.SIC_Solpes (load_solpe)", "columnas": list(sol.columns), "primera_fila": row}
+    except Exception as exc:
+        raise _HTTPException(status_code=502, detail=str(exc))
+
+
 @router.get("/tiempos")
 def get_tiempos():
     import json

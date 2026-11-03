@@ -84,6 +84,7 @@ def get_contratos():
     return get_sim_contratos()
 
 
+
 @router.get("/{sim_id}")
 def get_sim(sim_id: int):
     from app.data.sql_server import get_simulacion_by_id

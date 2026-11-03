@@ -48,6 +48,21 @@ def query_df(sql: str, params: tuple = ()) -> pd.DataFrame:
         conn.close()
 
 
+# ── Proveedores EP ───────────────────────────────────────────────────────────
+
+@lru_cache(maxsize=None)
+def get_proveedor_map_ep() -> dict:
+    """Devuelve dict {codigo_ctt: proveedor} desde dbo.SIC_EPs."""
+    try:
+        df = query_df(
+            "SELECT [Contrato Código] AS codigo_ctt, MAX(Proveedor) AS proveedor "
+            "FROM dbo.SIC_EPs WHERE Proveedor IS NOT NULL GROUP BY [Contrato Código]"
+        )
+        return dict(zip(df['codigo_ctt'].astype(str), df['proveedor'].astype(str)))
+    except Exception:
+        return {}
+
+
 # ── Proyecciones ─────────────────────────────────────────────────────────────
 
 def get_proyecciones(
@@ -1344,6 +1359,35 @@ def get_sim_vendor_codes(proyectos: list[str]) -> list[dict]:
             'periodo_fin':      periodos[-1]['periodo'] if periodos else '',
             'periodos':         periodos,
         })
+
+    # Enrich each dupla with the Tipo_contrato of its P&C contracts (from SIC cache)
+    try:
+        from app.metrics.calculations import saldo_por_contrato
+        sic = saldo_por_contrato()
+        if 'codigo_ctt' in sic.columns and 'Tipo_contrato' in sic.columns:
+            tipo_map = (
+                sic[['codigo_ctt', 'Tipo_contrato']]
+                .dropna(subset=['codigo_ctt'])
+                .drop_duplicates('codigo_ctt')
+                .set_index('codigo_ctt')['Tipo_contrato']
+                .to_dict()
+            )
+            # DEBUG — eliminar después
+            all_pyc = [c for row in result for c in row['contratos_pyc']]
+            print("=== DEBUG SIM ===")
+            print("contratos_pyc muestra:", all_pyc[:5])
+            print("sic codigo_ctt muestra:", list(tipo_map.keys())[:5])
+            matches = [c for c in all_pyc if c in tipo_map]
+            print("matches encontrados:", matches[:5])
+            print("=================")
+            for row in result:
+                tipos = sorted({tipo_map[c] for c in row['contratos_pyc'] if c in tipo_map and tipo_map[c]})
+                row['tipos_contrato'] = tipos
+    except Exception as e:
+        print("ERROR en tipos_contrato:", e)
+        for row in result:
+            row['tipos_contrato'] = []
+
     return result
 
 
@@ -1359,14 +1403,36 @@ def get_sim_contratos() -> dict:
     for col in ('Saldo_CLP', 'Presupuesto_CLP'):
         if col in sic_df.columns:
             sic_df[col] = pd.to_numeric(sic_df[col], errors='coerce').fillna(0)
+
     sic_list = _json.loads(sic_df.to_json(orient='records'))
 
+    # Clasificar cada contrato SIC con el mismo algoritmo de texto que licitaciones.py
+    try:
+        from app.routers.licitaciones import _tipo_servicio
+        for rec in sic_list:
+            text = ' '.join(filter(None, [
+                rec.get('Descripcion_ctt') or '',
+                rec.get('Tipo_contrato') or '',
+            ]))
+            rec['tipo_servicio'] = _tipo_servicio(text)
+    except Exception:
+        for rec in sic_list:
+            rec['tipo_servicio'] = ''
+
+    # SOLPEs: only include those not yet adjudicated or adjudicated within last 2 months
     solpe = load_solpe()
     solpe_cols = [c for c in ['Código', 'Nombre', 'Tipo', 'Monto', 'Moneda',
                                'Estado_SOLPE', 'Grupo_Estado'] if c in solpe.columns]
     solpe_df = solpe[solpe_cols].copy()
     if 'Monto' in solpe_df.columns:
         solpe_df['Monto'] = pd.to_numeric(solpe_df['Monto'], errors='coerce').fillna(0)
-    solpe_list = _json.loads(solpe_df.to_json(orient='records'))
+
+    if 'Fecha_Adjudicacion' in solpe.columns:
+        cutoff = pd.Timestamp.now() - pd.Timedelta(days=60)
+        fecha_adj = pd.to_datetime(solpe['Fecha_Adjudicacion'], errors='coerce')
+        mask = fecha_adj.isna() | (fecha_adj >= cutoff)
+        solpe_df = solpe_df[mask]
+
+    solpe_list = _json.loads(solpe_df.fillna('').to_json(orient='records'))
 
     return {'sic': sic_list, 'solpes': solpe_list}

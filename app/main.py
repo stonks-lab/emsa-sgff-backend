@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from app.routers import home, saldo, licitaciones, alertas, proyecciones, analisis, sourcing, upload, estado_proyectos, metros, monday, dpo, simulacion, ep
+from app.routers import home, saldo, licitaciones, alertas, proyecciones, analisis, sourcing, upload, estado_proyectos, metros, monday, dpo, simulacion, ep, auth
 
 app = FastAPI(title="Tablero DAB-DPO API", version="1.0")
 
@@ -28,6 +28,7 @@ app.include_router(monday.router,           prefix="/api")
 app.include_router(dpo.router,              prefix="/api")
 app.include_router(simulacion.router,       prefix="/api")
 app.include_router(ep.router,               prefix="/api")
+app.include_router(auth.router,             prefix="/api")
 
 
 @app.get("/api/health")
@@ -47,6 +48,9 @@ if DIST.exists():
 
     @app.get("/{full_path:path}")
     def serve_spa(full_path: str):
+        if full_path.startswith("api/"):
+            from fastapi import HTTPException
+            raise HTTPException(status_code=404, detail="Not found")
         file = DIST / full_path
         if file.exists() and file.is_file():
             return FileResponse(str(file))
