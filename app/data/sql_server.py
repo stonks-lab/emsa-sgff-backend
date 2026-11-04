@@ -69,9 +69,18 @@ def get_proyecciones(
     contrato: str | None = None,
     periodo_desde: str | None = None,
     tipo: str | None = None,
+    proyecto: str | None = None,
+    periodo_hasta: str | None = None,
 ) -> pd.DataFrame:
     conditions = ["1=1"]
     params: list = []
+
+    if proyecto:
+        conditions.append("proyecto LIKE ?")
+        params.append(f"%{proyecto}%")
+    if periodo_hasta:
+        conditions.append("periodo <= ?")
+        params.append(periodo_hasta)
 
     if contrato:
         conditions.append("contrato = ?")
