@@ -115,6 +115,13 @@
 - **Corrección:** el backlog afirmaba que `master` nació de "una copia local que no estaba al día". El análisis archivo por archivo no permite afirmarlo: también calza con una reversión intencional. Se reescribió como hipótesis abierta.
 - Este PR agrega `AGENTS.md`, `CLAUDE.md`, `.worklog/` y `.claude/` (regla, comandos y hooks de sesión), con el mismo esquema que `emsa-hsec-plataforma`.
 
+### 14:38 — Reglas de flujo y de commits, y merge de los PR
+- **Decisión (usuario):** el repo usa siempre **GitHub Flow**. Pasará a **Gitflow** solo cuando lo decida Aldo. Los commits siguen siempre **Conventional Commits** y son **atómicos**. Quedó en `AGENTS.md` y `CLAUDE.md` (`8d4a6ef`), y el hook y los comandos de sesión se alinearon en un commit aparte (`b02ac00`).
+- **Decisión (usuario):** revisar todos los PR y, si están en verde, mergear con merge commit o squash, a mi criterio. Luego sincronizar local con remoto.
+  - **PR #4, merge commit:** une historias, y con squash se perdería esa unión.
+  - **PR #5 (este), merge commit:** trae varios commits atómicos que vale la pena conservar.
+- **Hallazgo:** dos commits del PR #4 no siguen Conventional Commits: el "Initial commit" de `master` y `de21f56` (`merge: …`). Ambos son anteriores a la regla y no se reescriben.
+
 ## Errores propios y cómo se corrigieron
 
 | Error | Cómo se detectó | Corrección |
