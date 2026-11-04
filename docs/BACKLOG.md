@@ -11,6 +11,29 @@ Cuando trabajes un ítem, abre un issue o PR y enlázalo aquí. Borra el ítem c
 - Integrar en `main` (merge con `--allow-unrelated-histories` y resolver los conflictos), confirmar desde qué rama se despliega y luego borrar `master`.
 - Ojo: `.gitignore` excluye `etl/`, pero en `master` está versionado. Hay que decidir si va al repo.
 
+Lo que se reconstruyó del historial:
+1. `main` avanzó hasta el 19-oct (`cd59c66`).
+2. `master` partió el 21-oct como copia de ese `main`, con cambios encima, y siguió hasta el 2-nov.
+3. El 3-nov se commiteó en `main` (`2e76ab2`, auth y metros vía SQL) sobre el `main` viejo.
+
+Consecuencia: `main` quedó inconsistente. Su `proyecciones.py` llama a `get_proyecciones(proyecto=…, periodo_hasta=…)`, parámetros que `sql_server.py` eliminó el 19-oct, por lo que `/proyecciones/tabla` y `/comparacion` dan 500. Además, 8 endpoints que usa el frontend existen solo en `master`.
+
+Propuesta de integración, ya probada en local contra el frontend: tomar `feat/simulacion-improvements` como base y aplicar encima `2e76ab2`. Quedan 10 bloques de conflicto en 5 archivos:
+
+| Archivo | Versión elegida | Detalle |
+|---|---|---|
+| `main.py` | ambas | registra `kpi_contratos` y `auth` |
+| `sql_server.py` | `feat` | sin `DEBUG`, con filtro de vigentes |
+| `licitaciones.py` | `main` | diagnóstico con respaldo SOLPE |
+| `metros.py` | `main` | lee `Proyecciones_P&C` por SQL en vez de `etl/d2.parquet`, que no está en el repo; se pierden `/cruce/debug` y `/avance/debug` |
+
+Resultado: 70 de 77 endpoints responden 200 con datos de prueba. Fallan los 5 de Monday (sin token) y los 2 que se describen abajo.
+- `/proyecciones/comparacion` no existe en `master`, pero el frontend todavía la llama desde `Proyecciones.tsx`. Hay que restaurarla o quitarla del frontend.
+- En `feat`, las 4 fuentes SIC se leen desde SQL (`SIC_EPsDetalles`, `SIC_Solpes`, `SIC_BoletasGarantia`, `SIC_ContratosItemizado`) y no desde Excel. `config.EXCEL_FILES` queda solo para `/upload/fuentes-externas`, que reporta fechas de archivos que ya no se usan.
+
+### 1b. La API no exige autenticación
+Solo `/auth/users` valida el token. Todos los endpoints de datos (`/saldo/*`, `/simulacion/*`, `/upload/*`, etc.) responden 200 sin token: el login solo protege la UI. Agregar una dependencia global (`dependencies=[Depends(...)]` en cada `include_router`) que valide el JWT y, donde corresponda, el rol. Los permisos por rol hoy viven solo en el frontend (`src/auth/roles.ts`).
+
 ### 2. Seguridad de la autenticación (`app/routers/auth.py`)
 - `JWT_SECRET` tiene un valor por defecto en el código (`tablero-emsa-key-2024`). Debe ser obligatorio por entorno y sin default.
 - Las contraseñas se guardan con SHA-256 sin sal. Hay que migrar a bcrypt o argon2 (por ejemplo, `passlib` o `argon2-cffi`).
@@ -34,11 +57,13 @@ Propuesta: usar Alembic (SQLAlchemy ya es dependencia) para las tablas propias y
 Falta una forma de levantar el sistema sin acceso a los servidores de EMSA. Propuesta: `docker-compose` con SQL Server Developer y un script de datos de prueba (`seed`), más un `.env.example` completo. Ya hay una versión local fuera del repo que puede servir de base.
 
 ### 6. Rutas fijas en el código
-- `app/config.py`: `EXCEL_DIR` se calcula subiendo 4 niveles desde `config.py` hasta `API-SIC/`. Depende de dónde quede clonado el repo. Debería ser una variable de entorno.
+- `app/config.py`: `EXCEL_DIR` se calcula subiendo 4 niveles desde `config.py` hasta `API-SIC/`. Depende de dónde quede clonado el repo. Debería ser una variable de entorno. Si se integra `master`, que ya no lee Excel, basta con eliminarlo.
 - `app/main.py`: el build del frontend se busca en `../frontend/dist`. Si el repo del frontend se clona con su nombre (`emsa-sgff-frontend`), no lo encuentra. Debería ser una variable de entorno.
 
 ### 7. Conexión a SQL Server no configurable
-El connection string (`app/data/sql_server.py`) no permite definir `Encrypt` ni `TrustServerCertificate`. El ODBC Driver 18 cifra por defecto, así que falla contra servidores con certificado propio. Agregar variables de entorno para esto.
+El connection string (`app/data/sql_server.py`) no permite definir `Encrypt` ni `TrustServerCertificate`. El ODBC Driver 18 cifra por defecto, así que falla contra servidores con certificado propio. Agregar variables de entorno para esto. En local se resolvió agregando esas opciones al valor de `SQL_SERVER`, pero es un parche.
+
+En macOS, el driver ODBC 18 solo soporta OpenSSL 1.x o 3.x, y Homebrew puede apuntar `openssl` a la versión 4. Hay que documentarlo en el README (`DYLD_LIBRARY_PATH=$(brew --prefix openssl@3)/lib`).
 
 ### 8. `.env.example` incompleto
 Faltan `MONDAY_API_KEY`, `MONDAY_BOARD_ID`, `SQL_BI_DATABASE` y `JWT_SECRET`.
