@@ -22,7 +22,17 @@
 - **Decisión:** por Aldo, pedirle a José que **no** renombre ni mueva carpetas: `run_servicio.bat` usa `C:\Dev\Tablero-integrado\tablero-web\backend` y la tarea `TableroDabDpo` depende de esa ruta.
 - **[inferido]** el Claude Code de José informó que su backend está en `tablero-web/`, no en `tablero-web\backend` como dice `run_servicio.bat`. El script podría estar desactualizado o el servicio no correr en ese equipo → preguntar a José.
 
+### ~16:30 — El backend de José corría código viejo
+- **Hallazgo:** con el código en disco en `7c0a6b9`, su backend respondía 404 en 13 rutas, exactamente las que están en `main` y no en `2e76ab2` (fuente: reporte de José; comparación de los `@router` con `git show`). `/proyecciones/tabla` y `/comparacion` daban 500: es el bug conocido de `2e76ab2` (ítem 1 del backlog, corregido por el PR #4), no pandas 3 (aquí responden 200 con pandas 3.1.0).
+- **Hallazgo:** Aldo detectó cambios en staging en el clon de José, los guardó en un stash (WIP) e hizo `git pull origin main`. Desde entonces las pantallas funcionan (fuente: Aldo). El stash queda en el equipo de José sin revisar.
+- **[inferido]** (error propio: lo presenté como causa) `run_servicio.bat` arranca en `tablero-web\backend\`, una subcarpeta ignorada por git (`.gitignore:53`), y el clon de José está en `tablero-web\`. Confirmar con José desde qué carpeta corre la tarea `TableroDabDpo`. Se anotó en el backlog, ítem 6.
+
+### ~17:50 — `users.json` faltante
+- **Hallazgo:** su reporte decía que no hay `users.json` en la raíz del backend. `/auth/login` y `/auth/users` lo leen en cada llamada (`app/routers/auth.py`): la pantalla Usuarios muestra "0 usuarios" y nadie podrá iniciar sesión cuando venza el token. **[inferido]** responde 500 → confirmar en F12 (José). Se anotó en el backlog, ítem 2.
+
 ## Resumen
-- **Logros:** `main` del backend verificado con el frontend: 77/77 endpoints, sin errores 5xx.
-- **Bloqueos:** ninguno.
-- **Para retomar:** autenticación por rol en el backend (backlog). Confirmar con José la ruta real de su servicio y si quedó funcionando después del pull.
+- **Logros:** `main` del backend verificado con el frontend: 77/77 endpoints, sin errores 5xx. El equipo de José quedó corriendo `main`.
+- **Bloqueos:** `users.json` faltante en el equipo de José.
+- **Para retomar:**
+  - José: restaurar `users.json`, revisar el stash y confirmar la carpeta de `TableroDabDpo`.
+  - Backlog: autenticación por rol (1b), seguridad de `auth.py` (2) y rutas fijas (6).
