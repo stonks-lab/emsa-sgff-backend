@@ -49,5 +49,5 @@ frontend/
 app/static/
 
 # Claude Code memory
-.claude/
+.claude/settings.local.json
 backend/
