@@ -48,6 +48,7 @@ Solo `/auth/users` valida el token. Todos los endpoints de datos (`/saldo/*`, `/
 - `JWT_SECRET` tiene un valor por defecto en el código (`tablero-emsa-key-2024`). Debe ser obligatorio por entorno y sin default.
 - Las contraseñas se guardan con SHA-256 sin sal. Hay que migrar a bcrypt o argon2 (por ejemplo, `passlib` o `argon2-cffi`).
 - Los usuarios viven en `users.json`, en la raíz del repo, y **ese archivo no está en `.gitignore`**: hay riesgo de subir hashes al repo. Moverlos a una tabla de la base o, como mínimo, agregarlos al `.gitignore`.
+- Si falta `users.json`, `/auth/login` y `/auth/users` fallan y la UI muestra "0 usuarios". No hay un archivo de ejemplo ni está documentado cómo crearlo. Le pasó a José el 4-nov.
 - Evaluar si conviene integrar con `emsa-identity-backend` (LDAP/AD), que ya existe en la org.
 
 ### 3. CORS abierto
@@ -69,6 +70,7 @@ Falta una forma de levantar el sistema sin acceso a los servidores de EMSA. Prop
 ### 6. Rutas fijas en el código
 - `app/config.py`: `EXCEL_DIR` se calcula subiendo 4 niveles desde `config.py` hasta `API-SIC/`. Depende de dónde quede clonado el repo. Debería ser una variable de entorno. Si se integra `master`, que ya no lee Excel, basta con eliminarlo.
 - `app/main.py`: el build del frontend se busca en `../frontend/dist`. Si el repo del frontend se clona con su nombre (`emsa-sgff-frontend`), no lo encuentra. Debería ser una variable de entorno.
+- `run_servicio.bat` hace `cd /d "C:\Dev\Tablero-integrado\tablero-web\backend"` y `setup_servicio.ps1` fija `$BatFile`. Si el repo se clona en otra carpeta, el servicio corre otro código o no arranca. Usar la carpeta del propio script: `cd /d "%~dp0"` y `Join-Path $PSScriptRoot "run_servicio.bat"`.
 
 ### 7. Conexión a SQL Server no configurable
 El connection string (`app/data/sql_server.py`) no permite definir `Encrypt` ni `TrustServerCertificate`. El ODBC Driver 18 cifra por defecto, así que falla contra servidores con certificado propio. Agregar variables de entorno para esto. En local se resolvió agregando esas opciones al valor de `SQL_SERVER`, pero es un parche.
