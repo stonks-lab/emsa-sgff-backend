@@ -116,6 +116,7 @@ def _load_sic_ep() -> tuple[dict[str, dict[str, float]], dict[str, str]]:
 @router.get("/timeline")
 def get_timeline(
     contrato:   Optional[str] = Query(None),
+    tipo:       Optional[str] = Query(None, description="P&C, AdC o vacío para ambos"),
     meses_hist: int           = Query(3),
     meses_fut:  int           = Query(24),
     limite:     int           = Query(20),
@@ -129,7 +130,7 @@ def get_timeline(
     hist_ini = (today - pd.DateOffset(months=meses_hist)).to_period('M').to_timestamp()
     hist_str = hist_ini.strftime('%Y-%m')
 
-    df = get_proyecciones(contrato=contrato)
+    df = get_proyecciones(contrato=contrato, tipo=tipo)
     if df.empty:
         return {'meses': [], 'mes_actual': mes_act, 'mes_actual_idx': 0,
                 'contratos': [], 'totales_mes': [], 'ultimo_ep': None}

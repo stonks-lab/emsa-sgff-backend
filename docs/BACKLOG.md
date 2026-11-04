@@ -13,7 +13,7 @@ Cuando trabajes un ítem, abre un issue o PR y enlázalo aquí. Borra el ítem c
 
 Lo que se reconstruyó del historial:
 1. `main` avanzó hasta el 19-oct (`cd59c66`).
-2. `master` partió el 21-oct como copia de ese `main`, con cambios encima, y siguió hasta el 2-nov.
+2. `master` partió el 21-oct desde una copia local que no estaba al día: `proyecciones.py` corresponde al `main` del 6-oct (`74d8a2a`) y `estado_proyectos.py` es anterior al 14-oct (`e96854d`). Encima trae cambios nuevos, y siguió hasta el 2-nov.
 3. El 3-nov se commiteó en `main` (`2e76ab2`, auth y metros vía SQL) sobre el `main` viejo.
 
 Consecuencia: `main` quedó inconsistente. Su `proyecciones.py` llama a `get_proyecciones(proyecto=…, periodo_hasta=…)`, parámetros que `sql_server.py` eliminó el 19-oct, por lo que `/proyecciones/tabla` y `/comparacion` dan 500. Además, 8 endpoints que usa el frontend existen solo en `master`.
@@ -27,8 +27,12 @@ Propuesta de integración, ya probada en local contra el frontend: tomar `feat/s
 | `licitaciones.py` | `main` | diagnóstico con respaldo SOLPE |
 | `metros.py` | `main` | lee `Proyecciones_P&C` por SQL en vez de `etl/d2.parquet`, que no está en el repo; se pierden `/cruce/debug` y `/avance/debug` |
 
-Resultado: 70 de 77 endpoints responden 200 con datos de prueba. Fallan los 5 de Monday (sin token) y los 2 que se describen abajo.
-- `/proyecciones/comparacion` no existe en `master`, pero el frontend todavía la llama desde `Proyecciones.tsx`. Hay que restaurarla o quitarla del frontend.
+Por esa copia desactualizada, la integración perdía dos cosas que `main` tenía y el frontend usa. Ambas se restauraron desde `main` tal cual, sin cherry-pick, porque `c2f24be` y `e96854d` traen otros cambios y chocan en `sourcing.py` y `calculations.py`:
+- `/estado-proyectos/saldo-timeline` (de `e96854d`), que alimenta la tabla "Proyección de Saldo mínimo por Proyecto" en Análisis por Proyecto. Su función `saldo_timeline_por_proyecto()` ya estaba, idéntica.
+- El filtro `tipo` de `/proyecciones/timeline` (de `c2f24be`). Sin él, los botones P&C/AdC de Proyecciones no filtran.
+
+Resultado: 76 de 77 endpoints responden 200 con datos de prueba (los 5 de Monday responden porque hay token). Falta lo que se describe abajo.
+- **Decisión pendiente (José):** `/proyecciones/comparacion` y los filtros `proyecto` y `periodo_hasta` de `/proyecciones/tabla`. Dependen de los parámetros que `cd59c66` sacó de `get_proyecciones()` a propósito ("Simplificada get_proyecciones"). En `main` dan 500 desde el 19-oct y en la integración no existen, pero el frontend los sigue usando: la tabla "P&C vs AdC" de Proyecciones queda vacía y esos dos filtros no filtran. Se resuelve de una de dos formas: devolver los dos filtros a `get_proyecciones()` (8 líneas de `168a78e`, sin la lógica `monto_usd`) y restaurar `/comparacion` desde `main`, o quitarlos del frontend.
 - En `feat`, las 4 fuentes SIC se leen desde SQL (`SIC_EPsDetalles`, `SIC_Solpes`, `SIC_BoletasGarantia`, `SIC_ContratosItemizado`) y no desde Excel. `config.EXCEL_FILES` queda solo para `/upload/fuentes-externas`, que reporta fechas de archivos que ya no se usan.
 
 ### 1b. La API no exige autenticación
