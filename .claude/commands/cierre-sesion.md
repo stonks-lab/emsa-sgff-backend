@@ -12,6 +12,6 @@ En la **misma rama** de la sesión, en este orden:
 3. Actualiza `docs/BACKLOG.md` si apareció, cambió o se resolvió un pendiente.
 4. Si se respondió una pregunta abierta de `.worklog/HISTORIAL-RECONSTRUIDO.md`, actualízala con su fuente.
 5. Actualiza `AGENTS.md` solo si cambió una instrucción durable.
-6. Commit de cierre: `docs(worklog): cerrar la sesión de <tema>`, con tu propia identidad de git.
+6. Revisa que los commits de la sesión sean atómicos y sigan Conventional Commits (`git log --oneline main..HEAD`). Commit de cierre: `docs(worklog): cerrar la sesión de <tema>`, con tu propia identidad de git.
 7. Pregunta antes de publicar: `git push -u origin <rama>` y `gh pr create --base main`. No mergees sin confirmación explícita.
 8. Confirma qué archivos se actualizaron.

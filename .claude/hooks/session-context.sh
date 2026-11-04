@@ -36,7 +36,8 @@ if git rev-parse -q --verify "$base" >/dev/null 2>&1 && [ "$rama" != "main" ] &&
 fi
 
 texto="$texto
-- La rama principal es main. Cada persona commitea con su propia identidad de git."
+- Flujo: GitHub Flow (rama corta desde main y PR a main; pasar a Gitflow lo decide solo Aldo).
+- Commits: Conventional Commits y atómicos, con tu propia identidad de git."
 
 # JSON a mano (sin jq): se escapan comillas, backslashes y saltos de línea.
 escapado=$(printf '%s' "$texto" | sed 's/\\/\\\\/g; s/"/\\"/g' | awk 'BEGIN{ORS=""} {print (NR>1 ? "\\n" : "") $0}')

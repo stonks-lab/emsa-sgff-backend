@@ -14,6 +14,7 @@
 
 - Registra cada decisión con su hora, quién la tomó y las alternativas consideradas.
 - Anota los hallazgos: limitaciones, configuraciones no obvias y errores, incluidos los propios.
+- Commitea en pasos atómicos y con Conventional Commits (ver `AGENTS.md`), no en un solo commit al final.
 - **Separa lo verificado de lo inferido.** Todo hecho lleva su fuente: commit, PR, comando o prueba. Lo que no se pudo comprobar va marcado como **[inferido]**, con a quién hay que preguntarle.
 - No reconstruyas el *por qué* de un cambio ajeno a partir de su diff. Si el mensaje del commit no lo dice, pregúntale al autor y anota la pregunta.
 
