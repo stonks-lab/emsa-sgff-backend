@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from app.routers import home, saldo, licitaciones, alertas, proyecciones, analisis, sourcing, upload, estado_proyectos, metros, monday, dpo, simulacion, ep, auth
+from app.routers import home, saldo, licitaciones, alertas, proyecciones, analisis, sourcing, upload, estado_proyectos, metros, monday, dpo, simulacion, ep, kpi_contratos, auth
 
 app = FastAPI(title="Tablero DAB-DPO API", version="1.0")
 
@@ -28,6 +28,7 @@ app.include_router(monday.router,           prefix="/api")
 app.include_router(dpo.router,              prefix="/api")
 app.include_router(simulacion.router,       prefix="/api")
 app.include_router(ep.router,               prefix="/api")
+app.include_router(kpi_contratos.router,    prefix="/api")
 app.include_router(auth.router,             prefix="/api")
 
 
@@ -37,7 +38,7 @@ def health():
 
 
 # ── Servir frontend (build de React) ─────────────────────────────────────────
-DIST = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
+DIST = Path(__file__).resolve().parent.parent / "frontend" / "dist"
 
 if DIST.exists():
     app.mount("/assets", StaticFiles(directory=str(DIST / "assets")), name="assets")

@@ -166,10 +166,28 @@ def get_kpis():
         p = i["proyecto"] or "Sin proyecto"
         por_proyecto[p] = por_proyecto.get(p, 0) + 1
 
-    por_estado_dpo: dict[str, int] = {}
-    for i in items:
-        e = i["estado_dpo"] or "Sin estado"
-        por_estado_dpo[e] = por_estado_dpo.get(e, 0) + 1
+    def _cat(estado: str) -> str:
+        e = (estado or "").lower()
+        if "aprobad" in e:
+            return "aprobado"
+        if "rechaz" in e:
+            return "rechazado"
+        return "por_aprobar"
+
+    aprobadores = [
+        ("Supervisor de Abastecimiento", "estado_supervisor"),
+        ("DPO",                          "estado_dpo"),
+        ("P&C",                          "estado_pyc"),
+    ]
+    por_aprobador = []
+    for label, field in aprobadores:
+        cats = [_cat(i[field]) for i in items]
+        por_aprobador.append({
+            "aprobador":  label,
+            "aprobados":  cats.count("aprobado"),
+            "por_aprobar": cats.count("por_aprobar"),
+            "rechazados": cats.count("rechazado"),
+        })
 
     return {
         "total":          total,
@@ -180,17 +198,26 @@ def get_kpis():
         "monto_total":    monto_total,
         "por_tipo":       [{"tipo": k, "cantidad": v} for k, v in sorted(por_tipo.items(), key=lambda x: -x[1])],
         "por_proyecto":   [{"proyecto": k, "cantidad": v} for k, v in sorted(por_proyecto.items(), key=lambda x: -x[1])],
-        "por_estado_dpo": [{"estado": k, "cantidad": v} for k, v in sorted(por_estado_dpo.items(), key=lambda x: -x[1])],
+        "por_aprobador":  por_aprobador,
     }
+
+
+_APROBADOR_FIELD = {
+    "supervisor de abastecimiento": "estado_supervisor",
+    "dpo":                          "estado_dpo",
+    "p&c":                          "estado_pyc",
+}
 
 
 @router.get("/tabla")
 def get_tabla(
-    tipo:      str = Query(""),
-    estado:    str = Query(""),
-    proyecto:  str = Query(""),
-    contrato:  str = Query(""),
-    area:      str = Query(""),
+    tipo:       str = Query(""),
+    estado:     str = Query(""),
+    proyecto:   str = Query(""),
+    contrato:   str = Query(""),
+    area:       str = Query(""),
+    aprobador:  str = Query(""),
+    estado_cat: str = Query(""),
 ):
     items = _fetch_all_items()
 
@@ -204,6 +231,14 @@ def get_tabla(
         items = [i for i in items if contrato.lower() in (i["codigo_contrato"] + i["nombre"]).lower()]
     if area:
         items = [i for i in items if area.lower() in i["area_solicitante"].lower()]
+    if aprobador and estado_cat:
+        field = _APROBADOR_FIELD.get(aprobador.lower())
+        if field:
+            items = [i for i in items if _cat(i[field]) == estado_cat]
+    elif aprobador:
+        field = _APROBADOR_FIELD.get(aprobador.lower())
+        if field:
+            items = [i for i in items if i[field]]
 
     return [
         {
@@ -263,3 +298,76 @@ def get_tendencia():
             mes = fecha[:7]
             por_mes[mes] = por_mes.get(mes, 0) + 1
     return [{"mes": k, "cantidad": v} for k, v in sorted(por_mes.items())]
+
+
+@router.get("/tendencia-razones")
+def get_tendencia_razones(
+    desde: str = Query(""),
+    hasta: str = Query(""),
+):
+    """Modificaciones por mes desglosadas por razón, con variación inicio→fin del rango."""
+    items = _fetch_all_items()
+
+    if desde:
+        items = [i for i in items if i["fecha_solicitud"] and i["fecha_solicitud"][:7] >= desde[:7]]
+    if hasta:
+        items = [i for i in items if i["fecha_solicitud"] and i["fecha_solicitud"][:7] <= hasta[:7]]
+
+    meses_razones: dict[str, dict[str, int]] = {}
+    razones_set: set[str] = set()
+
+    for i in items:
+        fecha = i["fecha_solicitud"]
+        if not fecha or len(fecha) < 7:
+            continue
+        mes = fecha[:7]
+        if mes not in meses_razones:
+            meses_razones[mes] = {}
+        for r in (i["razon"] or "Sin razón").split(","):
+            r = r.strip()
+            if not r:
+                continue
+            razones_set.add(r)
+            meses_razones[mes][r] = meses_razones[mes].get(r, 0) + 1
+
+    razones = sorted(razones_set)
+    meses_sorted = sorted(meses_razones.keys())
+
+    rows = []
+    for mes in meses_sorted:
+        row: dict = {"mes": mes}
+        for r in razones:
+            row[r] = meses_razones[mes].get(r, 0)
+        rows.append(row)
+
+    variacion: list[dict] = []
+    if meses_sorted:
+        mes_inicio = meses_sorted[0]
+        mes_fin    = meses_sorted[-1]
+        total_inicio = sum(meses_razones[mes_inicio].values()) or 1
+        total_fin    = sum(meses_razones[mes_fin].values())    or 1
+        for r in razones:
+            cnt_i = meses_razones[mes_inicio].get(r, 0)
+            cnt_f = meses_razones[mes_fin].get(r, 0)
+            if cnt_i > 0:
+                var_pct = round((cnt_f - cnt_i) / cnt_i * 100, 1)
+            elif cnt_f > 0:
+                var_pct = 100.0
+            else:
+                var_pct = 0.0
+            variacion.append({
+                "razon":        r,
+                "count_inicio": cnt_i,
+                "count_fin":    cnt_f,
+                "pct_inicio":   round(cnt_i / total_inicio * 100, 1),
+                "pct_fin":      round(cnt_f / total_fin    * 100, 1),
+                "variacion_pct": var_pct,
+            })
+
+    return {
+        "razones":    razones,
+        "datos":      rows,
+        "variacion":  variacion,
+        "mes_inicio": meses_sorted[0]  if meses_sorted else None,
+        "mes_fin":    meses_sorted[-1] if meses_sorted else None,
+    }

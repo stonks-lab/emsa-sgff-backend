@@ -25,6 +25,8 @@ Thumbs.db
 
 # Variables de entorno (contienen credenciales)
 .env
+.env.*
+!.env.example
 
 # Logs
 *.log
@@ -34,4 +36,18 @@ Thumbs.db
 *.xlsx
 *.xls
 *.csv
-etl/
+
+# ETL - tiene config_etl.py con credenciales hardcodeadas, sube solo el ejemplo
+etl/config_etl.py
+etl/.pbi_token_cache
+etl/*.token
+
+# Frontend (repositorio separado: stonks-lab/dabdpo-frontend)
+frontend/
+
+# Assets generados al hacer build del frontend
+app/static/
+
+# Claude Code memory
+.claude/
+backend/
