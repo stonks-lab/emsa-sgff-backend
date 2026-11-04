@@ -9,6 +9,7 @@ Una fila por sesión; la agrega `/cierre-sesion`. El detalle está en `sesiones/
 | Fecha | Tema | Ubicación clave | Estado |
 |---|---|---|---|
 | [11-04](sesiones/2026-11-04_renombre-stack-local-e-integracion.md) | Renombre `dabdpo-backend` → `emsa-sgff-backend`, README, backlog y `.env.example`. Stack local desechable (SQL Server en Docker, fuera del repo). Integración de `master`/`feat` en `main` con merge real, más la recuperación de lo que se perdía de `main`: 77 de 77 endpoints. Creación del worklog | `README.md`, `docs/BACKLOG.md`, `.env.example`, `app/routers/proyecciones.py`, `.worklog/` | 🔄 PR #4 espera la revisión de José |
+| [11-04](sesiones/2026-11-04_dogfooding-main.md) | Dogfooding de `main` con el frontend antes de la migración de José: 77/77 endpoints, sin 5xx, simulación y login por rol verificados. Seguimiento del equipo de José: su backend corría código anterior a la integración (13 rutas 404, 500 de `2e76ab2`), resuelto con stash + pull; falta `users.json`. Detalle y PR #6 en la sesión hermana del frontend | `.worklog/`, `docs/BACKLOG.md`, `AGENTS.md` | ✅ |
 
 ## Antes del worklog
 

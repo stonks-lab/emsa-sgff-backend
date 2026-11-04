@@ -10,7 +10,7 @@ Instrucciones para agentes de IA y personas que trabajan en este repositorio.
 
 **Regla:** este repo usa **GitHub Flow**. Pasará a **Gitflow** solo cuando lo decida Aldo Saavedra. Hasta que esa decisión quede escrita en este archivo, nadie, ni persona ni agente, crea `develop`, `release/*` ni `hotfix/*` ni cambia el flujo.
 
-- **La rama principal es `main`**, la única permanente, y debe poder desplegarse siempre. `master` y `feat/simulacion-improvements` son historia anterior que entra a `main` con el PR #4. No crees ramas a partir de ellas.
+- **La rama principal es `main`**, la única permanente, y debe poder desplegarse siempre. `master` y `feat/simulacion-improvements` eran historia anterior: entraron a `main` con el PR #4 y se borraron el 2026-11-04.
 - Cada cambio va en una rama corta creada desde un `main` actualizado (`git pull` antes). El prefijo es el tipo de Conventional Commits: `feat/`, `fix/`, `docs/`, `refactor/`, `chore/` o `test/`.
 - Todo cambio entra a `main` por Pull Request. No hagas push directo a `main`.
 - Cómo mergear un PR:
