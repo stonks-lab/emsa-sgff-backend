@@ -11,25 +11,35 @@ Cuando trabajes un ítem, abre un issue o PR y enlázalo aquí. Borra el ítem c
 - Integrar en `main` (merge con `--allow-unrelated-histories` y resolver los conflictos), confirmar desde qué rama se despliega y luego borrar `master`.
 - Ojo: `.gitignore` excluye `etl/`, pero en `master` está versionado. Hay que decidir si va al repo.
 
-Lo que se reconstruyó del historial:
-1. `main` avanzó hasta el 19-oct (`cd59c66`).
-2. `master` partió el 21-oct como copia de ese `main`, con cambios encima, y siguió hasta el 2-nov.
-3. El 3-nov se commiteó en `main` (`2e76ab2`, auth y metros vía SQL) sobre el `main` viejo.
+Lo que muestra git (detalle y fuentes en `.worklog/HISTORIAL-RECONSTRUIDO.md`):
+1. `main` avanzó hasta el 19-oct (`cd59c66`), con la identidad `riffocardenas-bit`.
+2. El 21-oct nació `master` con un "Initial commit" (`2d1633c`) sin padre, con la identidad `stonks-lab` (mismo correo). Comparando archivo por archivo, la mayoría coincide con `main` al 19-oct, pero `proyecciones.py` coincide con el del 6-oct (`74d8a2a`) y `estado_proyectos.py` con uno anterior al 14-oct (`e96854d`). Siguió hasta el 2-nov.
+3. El 3-nov se commiteó en `main` (`2e76ab2`, auth y metros vía SQL) sobre el `main` del 19-oct.
+
+Lo que **no** sabemos (hay que confirmarlo con José): si esos dos archivos quedaron atrás por una copia desactualizada o si se revirtieron a propósito para calzar con la simplificación de `get_proyecciones()` del 19-oct. Ambas lecturas encajan con lo que muestra git.
 
 Consecuencia: `main` quedó inconsistente. Su `proyecciones.py` llama a `get_proyecciones(proyecto=…, periodo_hasta=…)`, parámetros que `sql_server.py` eliminó el 19-oct, por lo que `/proyecciones/tabla` y `/comparacion` dan 500. Además, 8 endpoints que usa el frontend existen solo en `master`.
 
-Propuesta de integración, ya probada en local contra el frontend: tomar `feat/simulacion-improvements` como base y aplicar encima `2e76ab2`. Quedan 10 bloques de conflicto en 5 archivos:
+Integración propuesta en el PR #4: tomar `feat/simulacion-improvements` como base y aplicar encima `2e76ab2`. Quedan 10 bloques de conflicto en 5 archivos:
 
 | Archivo | Versión elegida | Detalle |
 |---|---|---|
 | `main.py` | ambas | registra `kpi_contratos` y `auth` |
 | `sql_server.py` | `feat` | sin `DEBUG`, con filtro de vigentes |
 | `licitaciones.py` | `main` | diagnóstico con respaldo SOLPE |
-| `metros.py` | `main` | lee `Proyecciones_P&C` por SQL en vez de `etl/d2.parquet`, que no está en el repo; se pierden `/cruce/debug` y `/avance/debug` |
+| `metros.py` | `main` | lee `Proyecciones_P&C` por SQL en vez de `etl/d2.parquet`, que no está en el repo; se pierden `/cruce/debug` y `/avance/debug`, que ninguna pantalla usa |
 
-Resultado: 70 de 77 endpoints responden 200 con datos de prueba. Fallan los 5 de Monday (sin token) y los 2 que se describen abajo.
-- `/proyecciones/comparacion` no existe en `master`, pero el frontend todavía la llama desde `Proyecciones.tsx`. Hay que restaurarla o quitarla del frontend.
+Con esa base se perdía código de `main` que el frontend usa. Se recuperó copiando los bloques desde `main`, sin cherry-pick, porque `c2f24be` y `e96854d` traen otros cambios y chocan en `sourcing.py` y `calculations.py`:
+- `/estado-proyectos/saldo-timeline` (de `e96854d`), que alimenta la tabla "Proyección de Saldo mínimo por Proyecto" en Análisis por Proyecto. Su función `saldo_timeline_por_proyecto()` ya estaba, idéntica.
+- `proyecciones.py` completo de `main`: el filtro `tipo` de `/timeline`, los filtros `proyecto` y `periodo_hasta` de `/tabla` y `/comparacion`. Para que no den 500, `get_proyecciones()` vuelve a aceptar `proyecto` y `periodo_hasta`: 2 parámetros opcionales al final, tomados de `168a78e`. No se repone la lógica `monto_usd` ni el mapa de tipo de servicio que quitó `cd59c66`. Las 2 llamadas que existen pasan los argumentos por nombre.
+
+Resultado: 77 de 77 endpoints responden 200 con datos de prueba.
 - En `feat`, las 4 fuentes SIC se leen desde SQL (`SIC_EPsDetalles`, `SIC_Solpes`, `SIC_BoletasGarantia`, `SIC_ContratosItemizado`) y no desde Excel. `config.EXCEL_FILES` queda solo para `/upload/fuentes-externas`, que reporta fechas de archivos que ya no se usan.
+
+### 1a. Proyecciones AdC: no hay forma de cargarlas
+`cd59c66` (19-oct) eliminó la carga AdC (`_transform_adc`, `load_proyecciones_adc`, `/upload/proyecciones-adc`). Hoy todas las cargas vacían `dbo.proyecciones` con `TRUNCATE` e insertan solo P&C: `load_proyecciones_pyc()` (que usa la tarea programada `etl/auto_reload_proyecciones.py`) y el ETL de Power BI en modo `full`, el que trae por defecto `config_etl.example.py`. Por eso, con datos reales, `/proyecciones/comparacion` responde `[]`, el botón AdC del timeline queda vacío y `total_adc` de `/proyecciones/kpis` es 0. La columna "Tipo servicio" de la comparación también sale vacía.
+- **Decisión de producto (José):** ¿vuelve la carga AdC o se sacan del frontend la tabla P&C vs AdC y el botón AdC?
+- El entorno local de pruebas inserta filas AdC a mano. Esas pantallas se ven con datos ahí, pero no en producción.
 
 ### 1b. La API no exige autenticación
 Solo `/auth/users` valida el token. Todos los endpoints de datos (`/saldo/*`, `/simulacion/*`, `/upload/*`, etc.) responden 200 sin token: el login solo protege la UI. Agregar una dependencia global (`dependencies=[Depends(...)]` en cada `include_router`) que valide el JWT y, donde corresponda, el rol. Los permisos por rol hoy viven solo en el frontend (`src/auth/roles.ts`).

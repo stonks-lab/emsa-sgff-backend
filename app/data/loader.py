@@ -1,10 +1,17 @@
 import pandas as pd
 from functools import lru_cache
-from app.config import EXCEL_FILES
+from app.data.sql_server import query_df
+
+_TABLES = {
+    "ep_detalle": "dbo.SIC_EPsDetalles",
+    "itemizado":  "dbo.SIC_ContratosItemizado",
+    "solpe":      "dbo.SIC_Solpes",
+    "boletas":    "dbo.SIC_BoletasGarantia",
+}
 
 
 def _read(key: str, **kwargs) -> pd.DataFrame:
-    return pd.read_excel(EXCEL_FILES[key], **kwargs)
+    return query_df(f"SELECT * FROM {_TABLES[key]}")
 
 
 @lru_cache(maxsize=None)
@@ -63,6 +70,10 @@ def load_solpe() -> pd.DataFrame:
         elif "SUSCRIPCI" in cu:
             rename[c] = "Fecha_Suscripcion"
     df.rename(columns=rename, inplace=True)
+
+    for date_col in ("Fecha_Creacion_SOLPE", "Fecha_Adjudicacion", "Fecha_Suscripcion"):
+        if date_col in df.columns:
+            df[date_col] = pd.to_datetime(df[date_col], errors="coerce")
 
     now = pd.Timestamp.now()
     df["Dias_Gestion"] = df.apply(

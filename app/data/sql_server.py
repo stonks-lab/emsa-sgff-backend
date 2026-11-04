@@ -69,9 +69,18 @@ def get_proyecciones(
     contrato: str | None = None,
     periodo_desde: str | None = None,
     tipo: str | None = None,
+    proyecto: str | None = None,
+    periodo_hasta: str | None = None,
 ) -> pd.DataFrame:
     conditions = ["1=1"]
     params: list = []
+
+    if proyecto:
+        conditions.append("proyecto LIKE ?")
+        params.append(f"%{proyecto}%")
+    if periodo_hasta:
+        conditions.append("periodo <= ?")
+        params.append(periodo_hasta)
 
     if contrato:
         conditions.append("contrato = ?")
@@ -640,10 +649,10 @@ def get_connection_bi() -> pyodbc.Connection:
     return pyodbc.connect(cs)
 
 
-def query_df_bi(sql: str) -> pd.DataFrame:
+def query_df_bi(sql: str, params: tuple = ()) -> pd.DataFrame:
     conn = get_connection_bi()
     try:
-        return pd.read_sql(sql, conn)
+        return pd.read_sql(sql, conn, params=params)
     finally:
         conn.close()
 
@@ -665,11 +674,64 @@ def _keep_latest_pai(df: "pd.DataFrame") -> "pd.DataFrame":
     return df
 
 
-def get_pai_proyectos() -> list[dict]:
+def _fmt_ver(v: float) -> str:
+    s = f"{v:.2f}".rstrip('0')
+    return s + '0' if s.endswith('.') else s
+
+
+def get_pai_versiones() -> list[dict]:
+    """Retorna las versiones disponibles de PAI como (ano, version, es_ultima, fecha_carga, label)."""
     df = query_df_bi("SELECT * FROM dbo.PAI_Proyectos")
     df.columns = [_normalize_col(c) for c in df.columns]
 
-    df = _keep_latest_pai(df)
+    ano_col = next((c for c in df.columns if c in ('ano_pai', 'anio_pai')), None)
+    ver_col = next((c for c in df.columns if 'version' in c.lower()), None)
+    fc_col  = next((c for c in df.columns if 'fecha_carga' in c), None)
+
+    if not (ano_col and ver_col):
+        return []
+
+    df[ano_col] = pd.to_numeric(df[ano_col], errors='coerce')
+    df[ver_col] = pd.to_numeric(df[ver_col], errors='coerce')
+
+    cols = [ano_col, ver_col] + ([fc_col] if fc_col else [])
+    combos = df[cols].drop_duplicates().dropna(subset=[ano_col, ver_col]).copy()
+
+    latest = df.groupby(ano_col)[ver_col].max().to_dict()
+
+    result = []
+    for _, row in combos.iterrows():
+        ano      = int(row[ano_col])
+        ver      = round(float(row[ver_col]), 2)
+        ver_str  = _fmt_ver(ver)
+        es_ultima = bool(ver == round(float(latest.get(ano, -1)), 2))
+        fecha    = str(row[fc_col])[:10] if fc_col and str(row.get(fc_col, '')) not in ('', 'nan', 'None', 'NaT') else ''
+        label    = f"PAI {ano} v{ver_str}" + (" (actual)" if es_ultima else (f" · {fecha}" if fecha else ""))
+        result.append({
+            'ano':        ano,
+            'version':    ver_str,
+            'es_ultima':  es_ultima,
+            'fecha_carga': fecha,
+            'label':      label,
+            'key':        f"{ano}|{ver_str}",
+        })
+
+    return sorted(result, key=lambda x: (-x['ano'], -float(x['version'])))
+
+
+def get_pai_proyectos(ano: "int | None" = None, version: "str | None" = None) -> list[dict]:
+    df = query_df_bi("SELECT * FROM dbo.PAI_Proyectos")
+    df.columns = [_normalize_col(c) for c in df.columns]
+
+    if ano is not None and version is not None:
+        ano_col = next((c for c in df.columns if c in ('ano_pai', 'anio_pai')), None)
+        ver_col = next((c for c in df.columns if 'version' in c.lower()), None)
+        if ano_col and ver_col:
+            df[ano_col] = pd.to_numeric(df[ano_col], errors='coerce')
+            df[ver_col] = pd.to_numeric(df[ver_col], errors='coerce').apply(lambda x: round(float(x), 2) if pd.notna(x) else None)
+            df = df[(df[ano_col] == int(ano)) & (df[ver_col] == round(float(version), 2))].copy()
+    else:
+        df = _keep_latest_pai(df)
 
     # Normalizar columna mes a YYYY-MM (formato explícito para evitar ambigüedad con dayfirst)
     if 'mes' in df.columns:
@@ -928,6 +990,192 @@ def get_config_dpo() -> dict:
     except Exception:
         pass
     return defaults
+
+
+# ── Proyectos Inicio ─────────────────────────────────────────────────────────
+
+def _ensure_proyectos_inicio_schema(cursor, conn: pyodbc.Connection) -> None:
+    cursor.execute("""
+        IF NOT EXISTS (
+            SELECT 1 FROM INFORMATION_SCHEMA.TABLES
+            WHERE TABLE_SCHEMA='dbo' AND TABLE_NAME='ProyectosInicio'
+        )
+        CREATE TABLE dbo.ProyectosInicio (
+            proyecto        NVARCHAR(200) NOT NULL,
+            estado_inicio   NVARCHAR(100) NOT NULL,
+            mes             INT           NOT NULL,
+            anio            INT           NOT NULL,
+            fecha_carga     DATETIME      NOT NULL CONSTRAINT DF_PI_fecha DEFAULT GETDATE(),
+            CONSTRAINT PK_ProyectosInicio PRIMARY KEY (proyecto, mes, anio)
+        )
+    """)
+    conn.commit()
+
+
+def upsert_proyectos_inicio(content: bytes) -> dict:
+    import io, unicodedata as _uc
+
+    df = pd.read_excel(io.BytesIO(content))
+    df.columns = [str(c).strip() for c in df.columns]
+
+    # Normalización insensible a tildes/mayúsculas para encontrar columnas
+    # 'Año' → 'ano', 'Estado de inicio' → 'estado de inicio', etc.
+    def _n(s: str) -> str:
+        return _uc.normalize('NFKD', s).encode('ascii', 'ignore').decode('ascii').lower().strip()
+
+    norm_map = {_n(c): c for c in df.columns}
+
+    col_proyecto = norm_map.get('proyecto')
+    col_estado   = norm_map.get('estado de inicio')
+    col_mes      = norm_map.get('mes')
+    col_anio     = norm_map.get('ano') or norm_map.get('anio') or norm_map.get('a_o')
+
+    faltantes = []
+    if not col_proyecto: faltantes.append('Proyecto')
+    if not col_estado:   faltantes.append('Estado de inicio')
+    if not col_mes:      faltantes.append('Mes')
+    if not col_anio:     faltantes.append('Año')
+    if faltantes:
+        raise ValueError(
+            f"Columnas faltantes: {faltantes}. "
+            f"Columnas encontradas: {list(df.columns)}"
+        )
+
+    df = df.rename(columns={
+        col_proyecto: '_proy',
+        col_estado:   '_estado',
+        col_mes:      '_mes',
+        col_anio:     '_anio',
+    })
+    rows_raw = len(df)
+
+    # Solo descartamos filas sin nombre de proyecto
+    df = df.dropna(subset=['_proy'])
+
+    # Mes: acepta número (10) o nombre español ("Agosto", "ago", …)
+    _MESES_ES = {
+        'enero':1,'ene':1,'febrero':2,'feb':2,'marzo':3,'mar':3,
+        'abril':4,'abr':4,'mayo':5,'may':5,'junio':6,'jun':6,
+        'julio':7,'jul':7,'agosto':8,'ago':8,
+        'septiembre':9,'sep':9,'sept':9,
+        'octubre':10,'oct':10,'noviembre':11,'nov':11,
+        'diciembre':12,'dic':12,
+    }
+    def _to_mes(val):
+        if pd.isna(val): return None
+        n = pd.to_numeric(val, errors='coerce')
+        if not pd.isna(n): return int(n)
+        s = _uc.normalize('NFKD', str(val)).encode('ascii','ignore').decode('ascii').lower().strip()
+        return _MESES_ES.get(s)
+
+    df['_mes']  = df['_mes'].apply(_to_mes)
+    df['_anio'] = pd.to_numeric(df['_anio'], errors='coerce')
+    df = df.dropna(subset=['_mes', '_anio'])
+    df['_mes']    = df['_mes'].astype(int)
+    df['_anio']   = df['_anio'].astype(int)
+    df['_proy']   = df['_proy'].astype(str).str.strip()
+    df['_estado'] = df['_estado'].fillna('').astype(str).str.strip()
+
+    conn   = get_connection()
+    cursor = conn.cursor()
+    try:
+        _ensure_proyectos_inicio_schema(cursor, conn)
+        for _, row in df.iterrows():
+            cursor.execute("""
+                MERGE dbo.ProyectosInicio AS target
+                USING (SELECT ? AS proyecto, ? AS mes, ? AS anio) AS src
+                  ON target.proyecto = src.proyecto
+                 AND target.mes      = src.mes
+                 AND target.anio     = src.anio
+                WHEN MATCHED THEN
+                  UPDATE SET estado_inicio=?, fecha_carga=GETDATE()
+                WHEN NOT MATCHED THEN
+                  INSERT (proyecto, estado_inicio, mes, anio, fecha_carga)
+                  VALUES (?, ?, ?, ?, GETDATE());
+            """, row['_proy'], int(row['_mes']), int(row['_anio']),
+                 row['_estado'],
+                 row['_proy'], row['_estado'], int(row['_mes']), int(row['_anio']))
+        conn.commit()
+    finally:
+        conn.close()
+
+    periodos = sorted({f"{int(r['_mes'])}/{int(r['_anio'])}" for _, r in df.iterrows()})
+    return {
+        "tabla":            "ProyectosInicio",
+        "filas_insertadas": len(df),
+        "rows_raw":         rows_raw,
+        "periodos":         periodos,
+        "ultima_carga":     datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+    }
+
+
+_KW_POSTERGADO     = ['posterga', 'no inicia', 'sin iniciar', 'reprograma']
+_KW_INCUMPLIMIENTO = ['incumplim', 'desfase', 'retraso', 'tardio']
+_KW_CUMPLIMIENTO   = ['cumplim', 'a tiempo', 'en fecha', 'segun prog', 'iniciado', 'en plazo']
+
+_MES_ABREV_PI = {1:'Ene',2:'Feb',3:'Mar',4:'Abr',5:'May',6:'Jun',
+                 7:'Jul',8:'Ago',9:'Sep',10:'Oct',11:'Nov',12:'Dic'}
+
+def _classify_estado_inicio(estado: str) -> str:
+    import unicodedata
+    s = unicodedata.normalize('NFKD', str(estado).strip().lower()).encode('ascii', 'ignore').decode('ascii')
+    if any(k in s for k in _KW_POSTERGADO):     return 'postergado'
+    if any(k in s for k in _KW_INCUMPLIMIENTO): return 'incumplimiento'
+    if any(k in s for k in _KW_CUMPLIMIENTO):   return 'cumplimiento'
+    return 'otro'
+
+
+def get_proyectos_inicio_resumen(fecha_desde: str | None = None, fecha_hasta: str | None = None) -> dict:
+    empty = {"total": 0, "cumplimiento": 0, "incumplimiento": 0, "postergado": 0,
+             "otro": 0, "pct_cumplimiento": 0.0, "periodo": None, "estados": {}}
+    try:
+        def _ym(s: str) -> int:
+            y, m = s.split('-')
+            return int(y) * 100 + int(m)
+
+        if fecha_desde or fecha_hasta:
+            desde = _ym(fecha_desde) if fecha_desde else 0
+            hasta = _ym(fecha_hasta) if fecha_hasta else 999999
+            df = query_df(
+                """SELECT proyecto, estado_inicio, mes, anio FROM dbo.ProyectosInicio
+                   WHERE (anio * 100 + mes) >= ? AND (anio * 100 + mes) <= ?
+                   ORDER BY anio, mes""",
+                (desde, hasta),
+            )
+        else:
+            df = query_df(
+                "SELECT proyecto, estado_inicio, mes, anio FROM dbo.ProyectosInicio ORDER BY anio, mes"
+            )
+    except Exception:
+        return empty
+    if df.empty:
+        return empty
+
+    df['cat'] = df['estado_inicio'].apply(_classify_estado_inicio)
+    counts    = df['cat'].value_counts().to_dict()
+    total     = len(df)
+
+    cumplimiento   = int(counts.get('cumplimiento',   0))
+    incumplimiento = int(counts.get('incumplimiento', 0))
+    postergado     = int(counts.get('postergado',     0))
+    otro           = int(counts.get('otro',           0))
+
+    periodos = df[['anio', 'mes']].drop_duplicates().sort_values(['anio', 'mes'])
+    first, last = periodos.iloc[0], periodos.iloc[-1]
+    lbl_first = f"{_MES_ABREV_PI[int(first['mes'])]} {int(first['anio'])}"
+    lbl_last  = f"{_MES_ABREV_PI[int(last['mes'])]}  {int(last['anio'])}"
+    periodo   = lbl_first if lbl_first == lbl_last else f"{lbl_first} – {lbl_last}"
+
+    return {
+        "total":            total,
+        "cumplimiento":     cumplimiento,
+        "incumplimiento":   incumplimiento,
+        "postergado":       postergado,
+        "otro":             otro,
+        "pct_cumplimiento": round(cumplimiento / total, 4) if total else 0.0,
+        "periodo":          periodo,
+        "estados":          {str(k): int(v) for k, v in df['estado_inicio'].value_counts().items()},
+    }
 
 
 # ── Registro de cargas ────────────────────────────────────────────────────────
@@ -1353,6 +1601,8 @@ def get_sim_vendor_codes(proyectos: list[str]) -> list[dict]:
             'proyecto':         str(proyecto_val),
             'alcance':          str(alcance_val),
             'contratos_pyc':    contratos_pyc,
+            'tipos_contrato':   [],
+            'saldo_pyc':        0.0,
             'moneda':           moneda,
             'total_proyectado': float(grp['monto'].sum()),
             'periodo_inicio':   periodos[0]['periodo']  if periodos else '',
@@ -1360,33 +1610,40 @@ def get_sim_vendor_codes(proyectos: list[str]) -> list[dict]:
             'periodos':         periodos,
         })
 
-    # Enrich each dupla with the Tipo_contrato of its P&C contracts (from SIC cache)
     try:
         from app.metrics.calculations import saldo_por_contrato
         sic = saldo_por_contrato()
-        if 'codigo_ctt' in sic.columns and 'Tipo_contrato' in sic.columns:
-            tipo_map = (
-                sic[['codigo_ctt', 'Tipo_contrato']]
-                .dropna(subset=['codigo_ctt'])
-                .drop_duplicates('codigo_ctt')
-                .set_index('codigo_ctt')['Tipo_contrato']
-                .to_dict()
-            )
-            # DEBUG — eliminar después
-            all_pyc = [c for row in result for c in row['contratos_pyc']]
-            print("=== DEBUG SIM ===")
-            print("contratos_pyc muestra:", all_pyc[:5])
-            print("sic codigo_ctt muestra:", list(tipo_map.keys())[:5])
-            matches = [c for c in all_pyc if c in tipo_map]
-            print("matches encontrados:", matches[:5])
-            print("=================")
-            for row in result:
-                tipos = sorted({tipo_map[c] for c in row['contratos_pyc'] if c in tipo_map and tipo_map[c]})
-                row['tipos_contrato'] = tipos
-    except Exception as e:
-        print("ERROR en tipos_contrato:", e)
+
+        def _norm_ctt(code: str) -> str:
+            s = code.strip()
+            return s[3:] if s.upper().startswith('CO-') else s
+
+        tipo_map, saldo_map = {}, {}
+        if 'codigo_ctt' in sic.columns:
+            base = sic.dropna(subset=['codigo_ctt']).drop_duplicates('codigo_ctt')
+            if 'Tipo_contrato' in sic.columns:
+                tipo_map = base.set_index('codigo_ctt')['Tipo_contrato'].to_dict()
+            if 'Saldo_CLP' in sic.columns:
+                saldo_map = base.set_index('codigo_ctt')['Saldo_CLP'].to_dict()
+
+        tipo_map_norm  = {_norm_ctt(k): v for k, v in tipo_map.items()}
+        saldo_map_norm = {_norm_ctt(k): v for k, v in saldo_map.items()}
+
         for row in result:
-            row['tipos_contrato'] = []
+            tipos = set()
+            saldo_total = 0.0
+            for c in row['contratos_pyc']:
+                nc = _norm_ctt(c)
+                t = tipo_map.get(c) or tipo_map_norm.get(nc)
+                if t:
+                    tipos.add(t)
+                s = saldo_map.get(c) or saldo_map_norm.get(nc)
+                if s is not None:
+                    saldo_total += float(s)
+            row['tipos_contrato'] = sorted(tipos)
+            row['saldo_pyc'] = saldo_total
+    except Exception:
+        pass  # tipos_contrato/saldo_pyc remain defaults
 
     return result
 
@@ -1403,6 +1660,10 @@ def get_sim_contratos() -> dict:
     for col in ('Saldo_CLP', 'Presupuesto_CLP'):
         if col in sic_df.columns:
             sic_df[col] = pd.to_numeric(sic_df[col], errors='coerce').fillna(0)
+
+    # Solo contratos vigentes
+    if 'Estado_ctt' in sic_df.columns:
+        sic_df = sic_df[sic_df['Estado_ctt'].str.strip() == 'Vigente']
 
     sic_list = _json.loads(sic_df.to_json(orient='records'))
 
