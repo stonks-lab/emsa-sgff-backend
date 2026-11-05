@@ -17,6 +17,10 @@
 - **Hallazgo:** el stack local no usa `--reload`, así que hubo que reiniciarlo (`down.sh --keep-image` + `up.sh`) para probar el cambio.
 - **Hallazgo:** contra el stack local, login con clave mala → 401; sin `users.json` → 503 con el mensaje; con el archivo restaurado → 200. El comando del README genera un JSON válido (1 usuario, hash de 64 caracteres). Con el `.gitignore` nuevo, el `users.json` local ya no aparece en `git status` (fuente: `curl` y `git status`).
 
+### 12:00 — Publicación sin PR
+- **Decisión:** por Aldo, subir los commits directo a `main` como hotfix, sin PR. Excepción explícita a la regla de `AGENTS.md` ("todo cambio entra por PR") para que José reciba los arreglos de inmediato. Se publicó con fast-forward, que conserva los commits atómicos.
+- **Hallazgo:** el `users.json` que compartió José (1 usuario, `admin`) funciona con este backend: login 200, `/auth/users` 200 con 1 usuario y clave incorrecta 401 (fuente: `curl` contra el stack local, con su archivo puesto temporalmente).
+
 ## Resumen
 - **Logros:** la falta de `users.json` deja de ser un 500 silencioso. Además, el archivo no se puede commitear por error y hay instrucciones para crearlo.
 - **Bloqueos:** ninguno.
