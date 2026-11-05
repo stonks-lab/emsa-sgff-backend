@@ -47,7 +47,7 @@ Solo `/auth/users` valida el token. Todos los endpoints de datos (`/saldo/*`, `/
 ### 2. Seguridad de la autenticación (`app/routers/auth.py`)
 - `JWT_SECRET` tiene un valor por defecto en el código (`tablero-emsa-key-2024`). Debe ser obligatorio por entorno y sin default.
 - Las contraseñas se guardan con SHA-256 sin sal. Hay que migrar a bcrypt o argon2 (por ejemplo, `passlib` o `argon2-cffi`).
-- Los usuarios viven en `users.json`, en la raíz del repo. Desde la rama `fix/users-json` el archivo está en `.gitignore`, si falta responde 503 con un mensaje claro y el README explica cómo crearlo. Sigue pendiente moverlos a una tabla de la base.
+- Los usuarios viven en `users.json`, en la raíz del repo. Si falta, la API responde 503 con un mensaje claro. Por decisión de Aldo (5-nov), el archivo está versionado con 4 usuarios de prueba (clave `sgff-local`) y el repo es público. Sigue pendiente moverlos a una tabla de la base.
 - Evaluar si conviene integrar con `emsa-identity-backend` (LDAP/AD), que ya existe en la org.
 
 ### 3. CORS abierto
