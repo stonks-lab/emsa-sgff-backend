@@ -35,7 +35,17 @@
 - **Hallazgo:** el ítem 1a del backlog estaba equivocado. La base real tiene 68 filas AdC de la carga del 8-oct: `/proyecciones/comparacion` devuelve 29 filas y `total_adc` es 16.050 MM CLP. La próxima carga las borraría. Se corrigió en `deeb97e`.
 - **Decisión:** por Aldo, push directo a `main`.
 
+### 15:25–12:55 — Actualización del equipo de José y reglas de trabajo
+- **Hallazgo:** en el frontend de José, `npm ci` falló con `EPERM` sobre `rolldown-binding.win32-x64-msvc.node`, y también estaban bloqueados `lightningcss` y `tailwindcss-oxide`: un Vite seguía corriendo. Como `npm ci` borró `node_modules` a medias, `vite` dejó de reconocerse. Se resolvió liberando el bloqueo, borrando `node_modules` y `dist`, y corriendo `npm ci` + `npx vite build` (fuente: salidas que compartió Aldo).
+- **Hallazgo:** el `git pull` del backend se detuvo por su `users.json` sin versionar. Se renombró a `users.local-backup.json` y el pull funcionó (fuente: Aldo).
+- **Hallazgo (corrección de Aldo):** la carpeta paraguas de José es `C:\Dev\Tablero-integrado\tablero-web\`, con `backend\` y `frontend\` como repos hermanos. No es el frontend dentro del backend, como se había supuesto. **[inferido]** con esa estructura, `app/main.py` busca el build en `backend\frontend\dist` y no lo encuentra, así que `http://localhost:8000` no serviría la interfaz → preguntar a José.
+- **Decisión:** por Aldo, todo PR debe aprobarlo otra persona del equipo, nunca quien lo abrió, y recién entonces el autor mergea. Se agregó a `AGENTS.md` y `CLAUDE.md` de los dos repos (`f916fd5`, push directo a `main`).
+- **Decisión:** por Aldo, armar un `CLAUDE.md` + `AGENTS.md` para la carpeta paraguas de José, con una rutina obligatoria al iniciar cada sesión: pull de `main`, conflictos resueltos con confirmación, borrar las ramas mergeadas y alertar sobre las no mergeadas. También GitHub Flow, Conventional Commits, commits atómicos y corregir los documentos que no calcen con la realidad. Se entregaron como archivos fuera de los repos.
+
 ## Resumen
-- **Logros:** la falta de `users.json` deja de ser un 500 silencioso. Además, el archivo no se puede commitear por error y hay instrucciones para crearlo.
+- **Logros:** la falta de `users.json` responde 503 con un mensaje claro, y `users.json` quedó versionado con los usuarios de prueba. El código se revisó contra el respaldo real de `DAB`: se corrigió el nombre de `SIC_ContratosItemizados` y el backlog de AdC. La regla de aprobación por otra persona quedó escrita. José quedó actualizado con `main`.
 - **Bloqueos:** ninguno.
-- **Para retomar:** en el equipo de José, restaurar o crear `users.json` siguiendo el README. Backlog ítem 2: usuarios en la base, contraseñas con bcrypt o argon2 y `JWT_SECRET` obligatorio.
+- **Para retomar:**
+  - Confirmar con José si `http://localhost:8000` sirve la interfaz con los repos hermanos (backlog, ítem 6, y backlog del frontend, ítem 5).
+  - Decidir la carga AdC antes de la próxima carga de proyecciones (1a).
+  - `dim_inf_proyecto` no existe en `DAB` → preguntar a José si existe en otra base o si se elimina del código.
