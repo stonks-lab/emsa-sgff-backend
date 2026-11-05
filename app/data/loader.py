@@ -4,7 +4,7 @@ from app.data.sql_server import query_df
 
 _TABLES = {
     "ep_detalle": "dbo.SIC_EPsDetalles",
-    "itemizado":  "dbo.SIC_ContratosItemizado",
+    "itemizado":  "dbo.SIC_ContratosItemizados",
     "solpe":      "dbo.SIC_Solpes",
     "boletas":    "dbo.SIC_BoletasGarantia",
 }
