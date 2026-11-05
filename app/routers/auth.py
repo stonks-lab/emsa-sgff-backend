@@ -17,6 +17,11 @@ USERS_PATH = Path(__file__).resolve().parent.parent.parent / "users.json"
 
 
 def _load_users() -> list[dict]:
+    if not USERS_PATH.exists():
+        raise HTTPException(
+            status_code=503,
+            detail="No existe users.json en la raíz del backend. Ver README, sección Usuarios.",
+        )
     with open(USERS_PATH, encoding="utf-8") as f:
         return json.load(f)
 
