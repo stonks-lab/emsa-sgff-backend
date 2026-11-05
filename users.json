@@ -1,0 +1,26 @@
+[
+  {
+    "username": "admin",
+    "name": "Admin Local",
+    "role": "admin",
+    "password_hash": "5e7cd08cb6633d99667bc515ba05b2e182b1d8ba39fa8a08899b46c68f68a7fe"
+  },
+  {
+    "username": "dab",
+    "name": "Usuario DAB",
+    "role": "dab",
+    "password_hash": "5e7cd08cb6633d99667bc515ba05b2e182b1d8ba39fa8a08899b46c68f68a7fe"
+  },
+  {
+    "username": "dpo",
+    "name": "Usuario DPO",
+    "role": "dpo",
+    "password_hash": "5e7cd08cb6633d99667bc515ba05b2e182b1d8ba39fa8a08899b46c68f68a7fe"
+  },
+  {
+    "username": "estrategico",
+    "name": "Usuario Estratégico",
+    "role": "estrategico",
+    "password_hash": "5e7cd08cb6633d99667bc515ba05b2e182b1d8ba39fa8a08899b46c68f68a7fe"
+  }
+]

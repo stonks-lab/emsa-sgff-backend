@@ -28,9 +28,6 @@ Thumbs.db
 .env.*
 !.env.example
 
-# Usuarios y hashes de contraseñas (ver README, sección Usuarios)
-users.json
-
 # Logs
 *.log
 
