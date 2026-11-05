@@ -62,15 +62,16 @@ Las variables se leen desde el entorno o desde un archivo `.env` en la raíz del
 
 ## Usuarios
 
-El login lee los usuarios desde `users.json`, en la raíz del repo. Ese archivo no se versiona (está en `.gitignore`) y git no lo crea: hay que copiarlo desde la instalación anterior o generarlo. Si falta, `/api/auth/login` y `/api/auth/users` responden 503.
+El login lee los usuarios desde `users.json`, en la raíz del repo. El archivo está versionado con 4 usuarios de prueba, todos con la clave `sgff-local`:
 
-Para crear el primer usuario administrador (pide la contraseña sin mostrarla):
+| Usuario | Rol |
+|---|---|
+| `admin` | `admin` |
+| `dab` | `dab` |
+| `dpo` | `dpo` |
+| `estrategico` | `estrategico` |
 
-```bash
-python -c "import json,getpass,hashlib; p=getpass.getpass('Contraseña: '); json.dump([{'username':'admin','name':'Administrador','role':'admin','password_hash':hashlib.sha256(p.encode()).hexdigest()}], open('users.json','w',encoding='utf-8'), ensure_ascii=False, indent=2)"
-```
-
-Los demás usuarios se crean desde la pantalla Usuarios del frontend, con un usuario `admin`.
+Los usuarios se crean, editan y borran desde la pantalla Usuarios del frontend, con un usuario `admin`. Esos cambios modifican `users.json`. Si el archivo falta, `/api/auth/login` y `/api/auth/users` responden 503.
 
 ## Estructura del proyecto
 
