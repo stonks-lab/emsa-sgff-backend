@@ -60,6 +60,18 @@ Las variables se leen desde el entorno o desde un archivo `.env` en la raíz del
 | `MONDAY_API_KEY` | Token de la API de Monday.com |
 | `MONDAY_BOARD_ID` | ID del tablero de Monday.com |
 
+## Usuarios
+
+El login lee los usuarios desde `users.json`, en la raíz del repo. Ese archivo no se versiona (está en `.gitignore`) y git no lo crea: hay que copiarlo desde la instalación anterior o generarlo. Si falta, `/api/auth/login` y `/api/auth/users` responden 503.
+
+Para crear el primer usuario administrador (pide la contraseña sin mostrarla):
+
+```bash
+python -c "import json,getpass,hashlib; p=getpass.getpass('Contraseña: '); json.dump([{'username':'admin','name':'Administrador','role':'admin','password_hash':hashlib.sha256(p.encode()).hexdigest()}], open('users.json','w',encoding='utf-8'), ensure_ascii=False, indent=2)"
+```
+
+Los demás usuarios se crean desde la pantalla Usuarios del frontend, con un usuario `admin`.
+
 ## Estructura del proyecto
 
 ```
