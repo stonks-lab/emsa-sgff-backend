@@ -21,6 +21,11 @@
 - **Decisión:** por Aldo, subir los commits directo a `main` como hotfix, sin PR. Excepción explícita a la regla de `AGENTS.md` ("todo cambio entra por PR") para que José reciba los arreglos de inmediato. Se publicó con fast-forward, que conserva los commits atómicos.
 - **Hallazgo:** el `users.json` que compartió José (1 usuario, `admin`) funciona con este backend: login 200, `/auth/users` 200 con 1 usuario y clave incorrecta 401 (fuente: `curl` contra el stack local, con su archivo puesto temporalmente).
 
+### 12:07 — `users.json` versionado
+- **Decisión:** por Aldo, versionar `users.json` con los 4 usuarios de prueba del stack local (`admin`, `dab`, `dpo` y `estrategico`, clave `sgff-local`) y subirlo directo a `main`. Revierte el `.gitignore` de la mañana. El foco de la sesión es que José vea lo mismo, no la seguridad. Se sacó también de `.git/info/exclude` en el equipo de Aldo.
+- **Hallazgo:** el archivo versionado es idéntico al que genera `local/seed/seed.py`, así que `up.sh` no deja cambios en el repo (fuente: `git status` después de commitear).
+- **Ojo para José:** si tiene un `users.json` sin versionar en la raíz, `git pull` se detiene ("untracked working tree files would be overwritten"). Debe moverlo o renombrarlo antes del pull.
+
 ## Resumen
 - **Logros:** la falta de `users.json` deja de ser un 500 silencioso. Además, el archivo no se puede commitear por error y hay instrucciones para crearlo.
 - **Bloqueos:** ninguno.
