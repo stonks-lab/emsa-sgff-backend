@@ -26,6 +26,15 @@
 - **Hallazgo:** el archivo versionado es idéntico al que genera `local/seed/seed.py`, así que `up.sh` no deja cambios en el repo (fuente: `git status` después de commitear).
 - **Ojo para José:** si tiene un `users.json` sin versionar en la raíz, `git pull` se detiene ("untracked working tree files would be overwritten"). Debe moverlo o renombrarlo antes del pull.
 
+### 12:22 — Respaldo real de la base DAB
+- **Hallazgo:** José compartió un respaldo SQL de la base `DAB` (`backup_DAB_20261105_114556.sql`, 281 MB, 22 tablas, sin vistas ni `BI_dev`). Se montó solo en el SQL Server local de Docker. La primera carga falló porque las fechas traen 6 decimales en los segundos y `DATETIME` acepta 3; se recortaron en una copia y quedó con 0 errores y las filas iguales a los INSERT del archivo (fuente: `sqlcmd` y conteo por tabla).
+- **Decisión:** por Aldo, corregir el código donde no calce con la base real.
+- **Hallazgo:** con el backend apuntando a `DAB`, el smoke da 76/77 respuestas 200 (el 404 es `/simulacion/1`: `Simulacion` está vacía). Un registro de consultas fallidas (fuera del repo) solo marcó `dbo.dim_inf_proyecto`, que no existe en la base real y ya tiene respaldo en `dim_proyectos` (fuente: `local/run/smoke-dab.txt`, `sqlspy.jsonl`).
+- **Hallazgo:** las columnas de SIC, `registro_incidencias` (se renombran por posición y el orden calza) y proyecciones coinciden con lo que usa el código. Las diferencias estaban en el seed local, que tenía columnas inventadas.
+- **Hallazgo:** el código leía `dbo.SIC_ContratosItemizado`, y la tabla real es `SIC_ContratosItemizados`. Se corrigió en `3beb8da`; `load_itemizado()` ahora lee 16.634 filas. No afectaba pantallas, porque ningún endpoint la usa.
+- **Hallazgo:** el ítem 1a del backlog estaba equivocado. La base real tiene 68 filas AdC de la carga del 8-oct: `/proyecciones/comparacion` devuelve 29 filas y `total_adc` es 16.050 MM CLP. La próxima carga las borraría. Se corrigió en `deeb97e`.
+- **Decisión:** por Aldo, push directo a `main`.
+
 ## Resumen
 - **Logros:** la falta de `users.json` deja de ser un 500 silencioso. Además, el archivo no se puede commitear por error y hay instrucciones para crearlo.
 - **Bloqueos:** ninguno.
