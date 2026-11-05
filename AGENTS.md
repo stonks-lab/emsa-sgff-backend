@@ -13,6 +13,7 @@ Instrucciones para agentes de IA y personas que trabajan en este repositorio.
 - **La rama principal es `main`**, la única permanente, y debe poder desplegarse siempre. `master` y `feat/simulacion-improvements` eran historia anterior: entraron a `main` con el PR #4 y se borraron el 2026-11-04.
 - Cada cambio va en una rama corta creada desde un `main` actualizado (`git pull` antes). El prefijo es el tipo de Conventional Commits: `feat/`, `fix/`, `docs/`, `refactor/`, `chore/` o `test/`.
 - Todo cambio entra a `main` por Pull Request. No hagas push directo a `main`.
+- **Todo PR necesita la aprobación de otra persona del equipo** (Aldo Saavedra u otro miembro), **nunca de quien lo abrió**. Solo después de esa aprobación, el autor lo mergea como se indica abajo.
 - Cómo mergear un PR:
   - **Squash merge** si es un solo cambio lógico. El título del PR va en formato Conventional Commits, porque queda como el commit en `main`.
   - **Create a merge commit** si trae varios commits atómicos que vale la pena conservar, o si une historias. El mensaje es `Merge PR #N: <título>`.
