@@ -31,10 +31,16 @@
 ### 11:02 — Aprobación y merge
 - **Decisión:** Aldo Saavedra aprueba el PR y pide mergearlo. Es una **excepción** a la regla de `AGENTS.md` ("nunca de quien lo abrió"): el PR lo abrió su propia cuenta y GitHub no permite que el autor se apruebe a sí mismo. La aprobación queda en un comentario del PR. Decide Aldo, que es quien define estas reglas. Motivo: desbloquear el despliegue del servidor.
 
+### 11:50 — Migración a `/sgff` en el servidor
+- **Hallazgo:** Aldo ejecutó en el servidor los Pasos 1, 4, 7, 10.3, 11 y 12 del runbook, más el reinicio de la tarea, y el SGFF funciona en `http://<servidor>/sgff` (fuente: Aldo, en la sesión). Claude no vio la salida de esos pasos.
+- **Error propio (Claude):** en las instrucciones de la migración, el reinicio de la tarea quedó como punto 4, después del Paso 12. Tenía que ir justo después del Paso 7: el backend solo revisa `dist` al arrancar, y la tarea ya corría con el build anterior. El runbook no necesita cambios: en una instalación nueva, la tarea arranca en el Paso 10, después del build, y el Paso 14 reinicia en cada actualización. Fue propio de esta migración.
+
 ## Resumen
-- **Logros:** SGFF operativo en el servidor (todavía en el puerto 8080). Runbook versionado, ya con la sub-ruta `/sgff`. Backlog actualizado.
-- **Bloqueos:** ninguno. Los dos PR fueron aprobados por Aldo (ver la excepción en el registro) y mergeados.
+- **Logros:** SGFF en producción en `http://<servidor>/sgff`, como aplicación del Default Web Site, con la tarea como LOCAL SERVICE. Se retiraron `svc_sgff`, el sitio del puerto 8080 y su regla de firewall. Runbook versionado en `docs/RUNBOOK-WINDOWS-SERVER.md` (PR #7). Backlog actualizado.
+- **Bloqueos:** ninguno.
 - **Para retomar:**
-  - En el servidor: Paso 1, 4, 7, 10.3, 11 (11.1 a 11.3) y 12 del runbook.
-  - Comprobar en el Paso 12 que las otras apps del Default Web Site siguen funcionando.
-  - Confirmar el **[inferido]** sobre la clave del SQL principal.
+  - **Restringir por IP la aplicación `/sgff` en IIS** mientras la API no exija token (backlog, ítem 1b). Es lo más urgente: hoy cualquiera en la red interna puede leer y cargar datos por `/sgff/api/*`.
+  - Confirmar el **[inferido]** sobre la clave del SQL principal → Aldo.
+  - Confirmar que se hizo la prueba de reinicio del servidor del Paso 12 → Aldo.
+  - Apagar el SGFF del equipo de José (tarea `TableroDabDpo`), para no tener dos versiones en uso.
+  - ETL: sigue sin activarse hasta decidir la carga AdC (ítem 1a).
