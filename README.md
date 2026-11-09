@@ -86,7 +86,9 @@ app/
 
 ## Despliegue
 
-En producción, el backend también sirve el frontend ya compilado. Si existe el directorio `../frontend/dist` (relativo a la raíz de este repo), FastAPI lo publica en `/` y deja la API bajo `/api`.
+En producción, el backend también sirve el frontend ya compilado. Si existe el directorio `frontend/dist` dentro de este repo (en el servidor es una *junction* hacia el repo del frontend), FastAPI lo publica en `/` y deja la API bajo `/api`. IIS publica todo en `http://<servidor>/sgff` y le quita el `/sgff` antes de reenviar, así que el backend no sabe de la sub-ruta.
+
+El procedimiento de instalación, actualización y operación en el Windows Server está en [`docs/RUNBOOK-WINDOWS-SERVER.md`](docs/RUNBOOK-WINDOWS-SERVER.md).
 
 ## Documentación
 
