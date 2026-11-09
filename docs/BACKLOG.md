@@ -42,7 +42,7 @@ Resultado: 77 de 77 endpoints responden 200 con datos de prueba.
 - Antes del respaldo se suponía que en producción no había AdC. Era incorrecto: las filas AdC existen mientras no se vuelva a cargar `dbo.proyecciones`.
 
 ### 1b. La API no exige autenticación
-Solo `/auth/users` valida el token. Todos los endpoints de datos (`/saldo/*`, `/simulacion/*`, `/upload/*`, etc.) responden 200 sin token: el login solo protege la UI. Agregar una dependencia global (`dependencies=[Depends(...)]` en cada `include_router`) que valide el JWT y, donde corresponda, el rol. Los permisos por rol hoy viven solo en el frontend (`src/auth/roles.ts`).
+Solo `/auth/users` valida el token. Todos los endpoints de datos (`/saldo/*`, `/simulacion/*`, `/upload/*`, etc.) responden 200 sin token: el login solo protege la UI. Agregar una dependencia global (`dependencies=[Depends(...)]` en cada `include_router`) que valide el JWT y, donde corresponda, el rol. Los permisos por rol hoy viven solo en el frontend (`src/auth/roles.ts`). Desde el 9-nov el SGFF está publicado en el servidor de producción (`/sgff` en el puerto 80), así que esto ya está expuesto en la red interna. Mientras no se resuelva: *IP and Domain Restrictions* de IIS en la aplicación `/sgff` (runbook, “Antes de abrir el SGFF a más usuarios”).
 
 ### 2. Seguridad de la autenticación (`app/routers/auth.py`)
 - `JWT_SECRET` tiene un valor por defecto en el código (`tablero-emsa-key-2024`). Debe ser obligatorio por entorno y sin default.
@@ -68,11 +68,15 @@ Falta una forma de levantar el sistema sin acceso a los servidores de EMSA. Prop
 
 ### 6. Rutas fijas en el código
 - `app/config.py`: `EXCEL_DIR` se calcula subiendo 4 niveles desde `config.py` hasta `API-SIC/`. Depende de dónde quede clonado el repo. Debería ser una variable de entorno. Si se integra `master`, que ya no lee Excel, basta con eliminarlo.
-- `app/main.py`: el build del frontend se busca en `../frontend/dist`. Si el repo del frontend se clona con su nombre (`emsa-sgff-frontend`), no lo encuentra. Debería ser una variable de entorno.
+- `app/main.py`: el build del frontend se busca en `frontend/dist` dentro de este repo. Si el frontend se clona aparte con su nombre (`emsa-sgff-frontend`), no lo encuentra. Debería ser una variable de entorno. En el servidor se resuelve con una *junction* (runbook, Paso 7.2).
 - `run_servicio.bat` hace `cd /d "C:\Dev\Tablero-integrado\tablero-web\backend"` y `setup_servicio.ps1` fija `$BatFile`. Si el repo se clona en otra carpeta, el servicio corre otro código o no arranca. Usar la carpeta del propio script: `cd /d "%~dp0"` y `Join-Path $PSScriptRoot "run_servicio.bat"`.
 
 ### 7. Conexión a SQL Server no configurable
 El connection string (`app/data/sql_server.py`) no permite definir `Encrypt` ni `TrustServerCertificate`. El ODBC Driver 18 cifra por defecto, así que falla contra servidores con certificado propio. Agregar variables de entorno para esto. En local se resolvió agregando esas opciones al valor de `SQL_SERVER`, pero es un parche.
+
+Además:
+- **El driver se elige con `sorted(drivers)[-1]`.** En el servidor de producción eso da `SQL Server Native Client RDA 11.0` (obsoleto), aunque está instalado el ODBC Driver 17. El driver debería venir del `.env`.
+- **`PWD=` va sin llaves.** Una clave con `;`, `{` o `}` rompe la cadena de conexión y SQL Server responde 18456 aunque la clave sea correcta. Envolver el valor: `PWD={...}`, con `}` duplicada. El Paso 6.1 del runbook detecta este caso.
 
 En macOS, el driver ODBC 18 solo soporta OpenSSL 1.x o 3.x, y Homebrew puede apuntar `openssl` a la versión 4. Hay que documentarlo en el README (`DYLD_LIBRARY_PATH=$(brew --prefix openssl@3)/lib`).
 
