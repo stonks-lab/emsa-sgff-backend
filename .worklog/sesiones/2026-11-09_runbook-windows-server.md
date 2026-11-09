@@ -28,9 +28,12 @@
 - **Decisión:** versionar el runbook en `docs/RUNBOOK-WINDOWS-SERVER.md`, pedido por Aldo. **Hallazgo:** los dos repos son públicos (fuente: `gh repo view --json visibility`), así que el runbook no trae el nombre del servidor, usuarios ni claves: dice `<servidor>`. El historial de esta migración va en este worklog, no en el runbook.
 - **Hallazgo:** con el SGFF ya publicado, la API sin token (ítem 1b) queda expuesta en la red interna. Se dejó recomendado restringir por IP en IIS.
 
+### 11:02 — Aprobación y merge
+- **Decisión:** Aldo Saavedra aprueba el PR y pide mergearlo. Es una **excepción** a la regla de `AGENTS.md` ("nunca de quien lo abrió"): el PR lo abrió su propia cuenta y GitHub no permite que el autor se apruebe a sí mismo. La aprobación queda en un comentario del PR. Decide Aldo, que es quien define estas reglas. Motivo: desbloquear el despliegue del servidor.
+
 ## Resumen
 - **Logros:** SGFF operativo en el servidor (todavía en el puerto 8080). Runbook versionado, ya con la sub-ruta `/sgff`. Backlog actualizado.
-- **Bloqueos:** el PR del frontend (`feat/subruta-sgff`) tiene que mergearse antes de ejecutar en el servidor los Pasos 4, 7, 11 y 12 con `/sgff`. Ambos PR necesitan la aprobación de otra persona del equipo.
+- **Bloqueos:** ninguno. Los dos PR fueron aprobados por Aldo (ver la excepción en el registro) y mergeados.
 - **Para retomar:**
   - En el servidor: Paso 1, 4, 7, 10.3, 11 (11.1 a 11.3) y 12 del runbook.
   - Comprobar en el Paso 12 que las otras apps del Default Web Site siguen funcionando.
