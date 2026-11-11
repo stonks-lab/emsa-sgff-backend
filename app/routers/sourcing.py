@@ -1,4 +1,5 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
+from typing import Optional
 from app.config import SQL_SOURCING_ENABLED
 
 router = APIRouter(prefix="/sourcing", tags=["sourcing"])
@@ -45,10 +46,10 @@ def get_tabla():
 
 
 @router.get("/cobertura-metros")
-def get_cobertura_metros():
+def get_cobertura_metros(proyecto: Optional[str] = Query(default=None)):
     _check()
     from app.data.sql_server import get_sourcing_cobertura_metros
-    return get_sourcing_cobertura_metros()
+    return get_sourcing_cobertura_metros(proyecto=proyecto or None)
 
 
 @router.get("/cobertura-detalle")

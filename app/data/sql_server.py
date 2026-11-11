@@ -231,19 +231,23 @@ def get_sourcing_tabla() -> list[dict]:
     return df.fillna("").to_dict("records")
 
 
-def get_sourcing_cobertura_metros() -> list[dict]:
+def get_sourcing_cobertura_metros(proyecto: str | None = None) -> list[dict]:
     """
     Devuelve metros cubiertos vs no cubiertos por mes.
     Cubierto = todos los alcances del id_blanco tienen contrato asignado en sourcing_plan.
     Metros vienen de dbo.PAI_Proyectos (versión más reciente), columna metros_pai.
+    Si se pasa `proyecto`, limita el análisis a los id_blancos de ese proyecto.
     """
-    sp = query_df("""
+    where_proy = "AND proyecto = ?" if proyecto else ""
+    params     = (proyecto,) if proyecto else ()
+    sp = query_df(f"""
         SELECT id_blanco, ISNULL(alcance, '') AS alcance,
                MAX(CASE WHEN ISNULL(contrato, '') != '' THEN 1 ELSE 0 END) AS tiene_contrato
         FROM dbo.sourcing_plan
         WHERE id_blanco IS NOT NULL AND id_blanco != ''
+        {where_proy}
         GROUP BY id_blanco, ISNULL(alcance, '')
-    """)
+    """, params=params)
 
     if sp.empty:
         return []
@@ -282,6 +286,10 @@ def get_sourcing_cobertura_metros() -> list[dict]:
     pai['_mes'] = parsed.dt.strftime('%Y-%m').where(parsed.notna(), None)
     pai = pai[pai['_mes'].notna()].copy()
     pai[metro_col] = pd.to_numeric(pai[metro_col], errors='coerce').fillna(0)
+
+    if proyecto:
+        project_ids = set(sp['id_blanco'].astype(str).tolist())
+        pai = pai[pai[id_col].astype(str).isin(project_ids)].copy()
 
     pai['_cubierto'] = pai[id_col].astype(str).isin(covered_ids)
     grp = pai.groupby(['_mes', '_cubierto'])[metro_col].sum().reset_index()
